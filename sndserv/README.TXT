@@ -1,4 +1,3 @@
-
 This is the soundserver as used by the original
 Linuxdoom release. I separated the source from
 the actual Linuxduum source. For various reasons
