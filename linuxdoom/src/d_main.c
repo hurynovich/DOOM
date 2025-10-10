@@ -48,21 +48,21 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 
 #include "../include/s_sound.h"
 #include "../include/v_video.h"
-#include "../w_wad.h"
-#include "../z_zone.h"
+#include "../include/w_wad.h"
+#include "../include/z_zone.h"
 
-#include "../f_wipe.h"
+#include "../include/f_wipe.h"
 #include "../include/f_finale.h"
 
 #include "../include/m_argv.h"
 #include "../include/m_menu.h"
-#include "../m_misc.h"
+#include "../include/m_misc.h"
 
-#include "../i_system.h"
+#include "../include/i_system.h"
 #include "../include/i_sound.h"
 #include "../include/i_video.h"
 
-#include "../g_game.h"
+#include "../include/g_game.h"
 
 #include "../include/am_map.h"
 #include "../include/hu_stuff.h"

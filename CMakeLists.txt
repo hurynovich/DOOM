@@ -13,6 +13,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 include_directories(include)
 
 add_subdirectory(linuxdoom)
+add_subdirectory(sersrc)
 #add_subdirectory(sndserv)
 #add_subdirectory(ipx)
-#add_subdirectory(sersrc)

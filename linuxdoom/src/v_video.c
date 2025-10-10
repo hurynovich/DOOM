@@ -31,7 +31,7 @@ rcsid[] = "$Id: v_video.c,v 1.5 1997/02/03 22:45:13 b1 Exp $";
 #include "../include/i_system.h"
 #include "../include/r_local.h"
 
-#include "../doomdef.h"
+#include "../include/doomdef.h"
 #include "../include/doomdata.h"
 
 #include "../include/m_bbox.h"

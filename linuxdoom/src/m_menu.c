@@ -41,7 +41,7 @@ rcsid[] = "$Id: m_menu.c,v 1.7 1997/02/03 22:45:10 b1 Exp $";
 #include "../include/i_video.h"
 #include "../include/v_video.h"
 #include "../include/z_zone.h"
-#include "../w_wad.h"
+#include "../include/w_wad.h"
 
 #include "../include/r_local.h"
 

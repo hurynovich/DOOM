@@ -32,7 +32,7 @@ rcsid[] = "$Id: hu_lib.c,v 1.3 1997/01/26 07:44:58 b1 Exp $";
 
 #include "../include/hu_lib.h"
 #include "../include/r_draw.h"
-#include "../r_local.h"
+#include "../include/r_local.h"
 
 // boolean : whether the screen is always erased
 #define noterased viewwindowx

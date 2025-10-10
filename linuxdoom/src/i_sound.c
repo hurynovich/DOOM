@@ -1,4 +1,4 @@
-// Emacs style mode select   -*- C++ -*- 
+// Emacs style mode select   -*- C++ -*-
 //-----------------------------------------------------------------------------
 //
 // $Id:$
@@ -21,8 +21,7 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: i_unix.c,v 1.5 1997/02/03 22:45:10 b1 Exp $";
+static const char rcsid[] = "$Id: i_unix.c,v 1.5 1997/02/03 22:45:10 b1 Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,9 +39,7 @@ rcsid[] = "$Id: i_unix.c,v 1.5 1997/02/03 22:45:10 b1 Exp $";
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-
-// Linux voxware output.
-#include <linux/soundcard.h>
+#include <errno.h>
 
 // Timer stuff. Experimental.
 #include <time.h>
@@ -50,7 +47,7 @@ rcsid[] = "$Id: i_unix.c,v 1.5 1997/02/03 22:45:10 b1 Exp $";
 
 #include "../include/z_zone.h"
 
-#include "../i_system.h"
+#include "../include/i_system.h"
 #include "../include/i_sound.h"
 #include "../include/m_argv.h"
 #include "../include/m_misc.h"

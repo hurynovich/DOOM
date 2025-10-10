@@ -36,11 +36,11 @@ rcsid[] = "$Id: st_lib.c,v 1.4 1997/02/03 16:47:56 b1 Exp $";
 
 #include "../include/i_system.h"
 
-#include "../w_wad.h"
+#include "../include/w_wad.h"
 
 #include "../include/r_local.h"
 #include "../include/st_lib.h"
-#include "../st_stuff.h"
+#include "../include/st_stuff.h"
 
 // in AM_map.c
 extern boolean		automapactive; 

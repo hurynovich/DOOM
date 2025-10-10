@@ -38,7 +38,7 @@ rcsid[] = "$Id: p_inter.c,v 1.4 1997/02/03 22:45:11 b1 Exp $";
 
 #include "../include/am_map.h"
 
-#include "../p_local.h"
+#include "../include/p_local.h"
 
 #include "../include/s_sound.h"
 
