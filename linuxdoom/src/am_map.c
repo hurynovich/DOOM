@@ -29,7 +29,7 @@ static const char rcsid[] = "$Id: am_map.c,v 1.4 1997/02/03 21:24:33 b1 Exp $";
 #include "../include/p_local.h"
 #include "../include/st_stuff.h"
 #include "../include/z_zone.h"
-#include "../w_wad.h"
+#include "../include/w_wad.h"
 
 #include "../include/i_system.h"
 #include "../include/m_cheat.h"

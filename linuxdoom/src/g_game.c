@@ -34,13 +34,13 @@ rcsid[] = "$Id: g_game.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "../include/i_system.h"
 #include "../include/m_argv.h"
 #include "../include/m_menu.h"
-#include "../m_misc.h"
-#include "../m_random.h"
-#include "../z_zone.h"
+#include "../include/m_misc.h"
+#include "../include/m_random.h"
+#include "../include/z_zone.h"
 
 #include "../include/p_saveg.h"
-#include "../p_setup.h"
-#include "../p_tick.h"
+#include "../include/p_setup.h"
+#include "../include/p_tick.h"
 
 #include "../include/d_main.h"
 
@@ -52,7 +52,7 @@ rcsid[] = "$Id: g_game.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 // Needs access to LFB.
 #include "../include/v_video.h"
 
-#include "../w_wad.h"
+#include "../include/w_wad.h"
 
 #include "../include/p_local.h"
 
@@ -64,9 +64,9 @@ rcsid[] = "$Id: g_game.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 
 // SKY handling - still the wrong place.
 #include "../include/r_sky.h"
-#include "../r_data.h"
+#include "../include/r_data.h"
 
-#include "../g_game.h"
+#include "../include/g_game.h"
 
 #define SAVEGAMESIZE	0x2c000
 #define SAVESTRINGSIZE	24

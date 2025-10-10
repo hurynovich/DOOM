@@ -34,7 +34,7 @@ rcsid[] = "$Id: r_bsp.c,v 1.4 1997/02/03 22:45:12 b1 Exp $";
 
 #include "../include/r_main.h"
 #include "../include/r_things.h"
-#include "../r_plane.h"
+#include "../include/r_plane.h"
 
 // State.
 #include "../include/doomstat.h"

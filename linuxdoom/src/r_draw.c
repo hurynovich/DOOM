@@ -32,7 +32,7 @@ rcsid[] = "$Id: r_draw.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 
 #include "../include/i_system.h"
 #include "../include/z_zone.h"
-#include "../w_wad.h"
+#include "../include/w_wad.h"
 
 #include "../include/r_local.h"
 

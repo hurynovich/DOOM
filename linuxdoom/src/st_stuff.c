@@ -33,7 +33,7 @@ rcsid[] = "$Id: st_stuff.c,v 1.6 1997/02/03 22:45:13 b1 Exp $";
 #include "../include/i_video.h"
 #include "../include/m_random.h"
 #include "../include/z_zone.h"
-#include "../w_wad.h"
+#include "../include/w_wad.h"
 
 #include "../include/doomdef.h"
 
@@ -41,10 +41,10 @@ rcsid[] = "$Id: st_stuff.c,v 1.6 1997/02/03 22:45:13 b1 Exp $";
 
 #include "../include/r_local.h"
 #include "../include/st_lib.h"
-#include "../st_stuff.h"
+#include "../include/st_stuff.h"
 
 #include "../include/p_inter.h"
-#include "../p_local.h"
+#include "../include/p_local.h"
 
 #include "../include/am_map.h"
 #include "../include/m_cheat.h"
