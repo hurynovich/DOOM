@@ -218,12 +218,7 @@ void S_SetSfxVolume(int volume);
 //
 // Initializes sound stuff, including volume
 //
-void
-S_Init
-( int 	,
-  int    );
-
-
+void S_Init (int ,int);
 
 //
 // SOUND IO
@@ -247,10 +242,7 @@ void I_ResumeSong(int handle);
 //  plays a song, and when the song is done,
 //  starts playing it again in an endless loop.
 // Horrible thing to do, considering.
-void
-I_PlaySong
-( int		handle,
-  int		looping );
+void I_PlaySong(int handle, int looping);
 
 
 // stops a song over 3 seconds.
@@ -275,24 +267,24 @@ int I_GetSfxLumpNum (sfxinfo_t*);
 
 
 // Starts a sound in a particular sound channel.
-int
-I_StartSound
-( int		id,
+int I_StartSound (
+  int		id,
   void*		data,
   int		vol,
   int		sep,
   int		pitch,
-  int		priority );
+  int		priority
+);
 
 
 // Updates the volume, separation,
 //  and pitch of a sound channel.
-void
-I_UpdateSoundParams
-( int		handle,
+void I_UpdateSoundParams(
+  int		handle,
   int		vol,
   int		sep,
-  int		pitch );
+  int		pitch
+);
 
 
 // Stops a sound channel.
@@ -304,9 +296,9 @@ int I_SoundIsPlaying(int handle);
 
 
 // the complete set of sound effects
-extern sfxinfo_t	S_sfx[];
+extern sfxinfo_t S_sfx[];
 
 // the complete set of music
-extern musicinfo_t	S_music[];
+extern musicinfo_t S_music[];
 
 #endif
