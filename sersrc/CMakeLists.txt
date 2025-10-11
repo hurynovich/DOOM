@@ -1,4 +1,4 @@
-project(sersrc)
+project(sersrc VERSION 1.0.0)
 
 set(SOURCES
         src/doomnet.c

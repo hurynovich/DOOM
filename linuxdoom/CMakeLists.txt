@@ -1,4 +1,4 @@
-project(linuxdoom)
+project(linuxdoom VERSION 1.1.0)
 
 # Explicitly list all source files from your Makefile
 set(SOURCES
