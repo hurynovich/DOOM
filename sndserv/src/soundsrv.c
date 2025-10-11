@@ -35,25 +35,23 @@
 //
 //-----------------------------------------------------------------------------
 
-
 static const char rcsid[] = "$Id: soundsrv.c,v 1.3 1997/01/29 22:40:44 b1 Exp $";
 
 
 
+#include <string.h>
 #include <math.h>
-#include <sys/types.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <malloc.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 
-#include "../sounds.h"
-#include "../soundsrv.h"
-#include "../wadread.h"
+#include "../include/sounds.h"
+#include "../include/soundsrv.h"
+#include "../include/wadread.h"
 
 //
 // Department of Redundancy Department.

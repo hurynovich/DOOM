@@ -36,7 +36,7 @@
 #ifndef __SOUNDSH__
 #define __SOUNDSH__
 
-#include "../soundst.h"
+#include "soundst.h"
 
 //
 // Identifiers for all music in game.
