@@ -11,12 +11,12 @@
 
 #define DOOM2
 
-extern	int	myargc;
-extern	char **myargv;
+extern int myargc;
+extern char **myargv;
 
 doomcom_t	doomcom;
 int			vectorishooked;
-void interrupt (*olddoomvect) (void);
+void interrupt (int *olddoomvect) (void);
 
 
 
@@ -32,15 +32,12 @@ void interrupt (*olddoomvect) (void);
 =================
 */
 
-int CheckParm (char *check)
-{
-	int             i;
+int CheckParm (const char *check) {
+  for (int i = 1; i < myargc; i++) {
+    if (!strcasecmp(check,myargv[i])) return i;
+  }
 
-	for (i = 1;i<myargc;i++)
-		if ( !stricmp(check,myargv[i]) )
-			return i;
-
-	return 0;
+  return 0;
 }
 
 
@@ -119,8 +116,6 @@ void LaunchDOOM (void)
 	#else
 	printf ("Returned from DOOM\n");
 	#endif
-
-
 }
 
 

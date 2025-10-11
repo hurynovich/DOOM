@@ -5,3 +5,5 @@ set(SOURCES
         src/port.c
         src/sersetup.c
 )
+
+add_library(sersrc ${SOURCES})
