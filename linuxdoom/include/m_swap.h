@@ -37,8 +37,8 @@ long	SwapLONG(long);
 #define SHORT(x)	((short)SwapSHORT((unsigned short) (x)))
 #define LONG(x)         ((long)SwapLONG((unsigned long) (x)))
 #else
-#define SHORT(x)	(x)
-#define LONG(x)         (x)
+#define SHORT(x)    (x)
+#define LONG(x)     (x)
 #endif
 
 

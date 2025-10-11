@@ -14,5 +14,6 @@ include_directories(include)
 
 add_subdirectory(linuxdoom)
 add_subdirectory(sersrc)
+add_subdirectory(sandbox)
 #add_subdirectory(sndserv)
 #add_subdirectory(ipx)

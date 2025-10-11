@@ -343,16 +343,12 @@ int W_NumLumps (void)
 // Returns -1 if name not found.
 //
 
-int W_CheckNumForName (char* name)
-{
+int W_CheckNumForName (char* name) {
     union {
-        char	s[9];
+        char s[9];
         int	x[2];
-
     } name8;
     
-    int		v1;
-    int		v2;
     lumpinfo_t*	lump_p;
 
     // make the name into two integers for easy compares
@@ -362,11 +358,10 @@ int W_CheckNumForName (char* name)
     name8.s[8] = 0;
 
     // case insensitive
-    strupr (name8.s);		
+    strupr (name8.s);
 
-    v1 = name8.x[0];
-    v2 = name8.x[1];
-
+    int	v1 = name8.x[0];
+    int v2 = name8.x[1];
 
     // scan backwards so patch lump files take precedence
     lump_p = lumpinfo + numlumps;
@@ -393,10 +388,7 @@ int W_CheckNumForName (char* name)
 //
 int W_GetNumForName (char* name)
 {
-    int	i;
-
-    i = W_CheckNumForName (name);
-    
+    int	i = W_CheckNumForName(name);
     if (i == -1)
       I_Error ("W_GetNumForName: %s not found!", name);
       
@@ -467,28 +459,21 @@ W_ReadLump
 //
 // W_CacheLumpNum
 //
-void*
-W_CacheLumpNum
-( int		lump,
-  int		tag )
-{
-    byte*	ptr;
+void* W_CacheLumpNum ( int lump, int tag ) {
+    byte *ptr;
 
-    if ((unsigned)lump >= numlumps)
-        I_Error ("W_CacheLumpNum: %i >= numlumps",lump);
+    if ((unsigned) lump >= numlumps)
+        I_Error("W_CacheLumpNum: %i >= numlumps", lump);
 
-    if (!lumpcache[lump])
-    {
+    if (!lumpcache[lump]) {
         // read the lump in
 
         //printf ("cache miss on lump %i\n",lump);
-        ptr = Z_Malloc (W_LumpLength (lump), tag, &lumpcache[lump]);
-        W_ReadLump (lump, lumpcache[lump]);
-    }
-    else
-    {
+        ptr = Z_Malloc(W_LumpLength(lump), tag, &lumpcache[lump]);
+        W_ReadLump(lump, lumpcache[lump]);
+    } else {
         //printf ("cache hit on lump %i\n",lump);
-        Z_ChangeTag (lumpcache[lump],tag);
+        Z_ChangeTag(lumpcache[lump], tag);
     }
 
     return lumpcache[lump];

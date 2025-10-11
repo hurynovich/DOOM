@@ -24,8 +24,7 @@
 //-----------------------------------------------------------------------------
 
 
-static const char
-rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
+static const char rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 
 #include "../include/i_system.h"
 #include "../include/z_zone.h"
@@ -408,8 +407,7 @@ R_GetColumn
 // Initializes the texture list
 //  with the textures from the world map.
 //
-void R_InitTextures (void)
-{
+void R_InitTextures (void) {
     maptexture_t*	mtexture;
     texture_t*		texture;
     mappatch_t*		mpatch;
@@ -419,15 +417,13 @@ void R_InitTextures (void)
     int			j;
 
     int*		maptex;
-    int*		maptex2;
     int*		maptex1;
-    
-    char		name[9];
-    char*		names;
+    int*		maptex2;
+
     char*		name_p;
-    
+
     int*		patchlookup;
-    
+
     int			totalwidth;
     int			nummappatches;
     int			offset;
@@ -437,23 +433,22 @@ void R_InitTextures (void)
     int			numtextures2;
 
     int*		directory;
-    
+
     int			temp1;
     int			temp2;
     int			temp3;
 
-    
     // Load the patch names from pnames.lmp.
-    name[8] = 0;	
-    names = W_CacheLumpName ("PNAMES", PU_STATIC);
-    nummappatches = LONG ( *((int *)names) );
-    name_p = names+4;
-    patchlookup = alloca (nummappatches*sizeof(*patchlookup));
-    
-    for (i=0 ; i<nummappatches ; i++)
-    {
-	strncpy (name,name_p+i*8, 8);
-	patchlookup[i] = W_CheckNumForName (name);
+    char name[9];
+    name[8] = 0;
+    char* names = W_CacheLumpName ("PNAMES", PU_STATIC);
+    nummappatches = LONG ( *((int*)names) );
+    name_p = names + 4;
+    patchlookup = alloca(nummappatches * sizeof(*patchlookup));
+
+    for (i=0; i < nummappatches; i++) {
+	    strncpy(name, name_p + i * 8, 8);
+	    patchlookup[i] = W_CheckNumForName(name);
     }
     Z_Free (names);
     
@@ -465,17 +460,14 @@ void R_InitTextures (void)
     maxoff = W_LumpLength (W_GetNumForName ("TEXTURE1"));
     directory = maptex+1;
 	
-    if (W_CheckNumForName ("TEXTURE2") != -1)
-    {
-	maptex2 = W_CacheLumpName ("TEXTURE2", PU_STATIC);
-	numtextures2 = LONG(*maptex2);
-	maxoff2 = W_LumpLength (W_GetNumForName ("TEXTURE2"));
-    }
-    else
-    {
-	maptex2 = NULL;
-	numtextures2 = 0;
-	maxoff2 = 0;
+    if (W_CheckNumForName ("TEXTURE2") != -1) {
+		maptex2 = W_CacheLumpName ("TEXTURE2", PU_STATIC);
+		numtextures2 = LONG(*maptex2);
+		maxoff2 = W_LumpLength (W_GetNumForName ("TEXTURE2"));
+    } else {
+		maptex2 = NULL;
+		numtextures2 = 0;
+		maxoff2 = 0;
     }
     numtextures = numtextures1 + numtextures2;
 	
@@ -494,77 +486,65 @@ void R_InitTextures (void)
     temp2 = W_GetNumForName ("S_END") - 1;
     temp3 = ((temp2-temp1+63)/64) + ((numtextures+63)/64);
     printf("[");
-    for (i = 0; i < temp3; i++)
-	printf(" ");
+    for (i = 0; i < temp3; i++) printf(" ");
     printf("         ]");
-    for (i = 0; i < temp3; i++)
-	printf("\x8");
+    for (i = 0; i < temp3; i++) printf("\x8");
     printf("\x8\x8\x8\x8\x8\x8\x8\x8\x8\x8");	
 	
-    for (i=0 ; i<numtextures ; i++, directory++)
-    {
-	if (!(i&63))
-	    printf (".");
+    for (i=0; i < numtextures; i++, directory++) {
+	    if (!(i & 63)) printf(".");
 
-	if (i == numtextures1)
-	{
-	    // Start looking in second texture file.
-	    maptex = maptex2;
-	    maxoff = maxoff2;
-	    directory = maptex+1;
-	}
-		
-	offset = LONG(*directory);
-
-	if (offset > maxoff)
-	    I_Error ("R_InitTextures: bad texture directory");
-	
-	mtexture = (maptexture_t *) ( (byte *)maptex + offset);
-
-	texture = textures[i] =
-	    Z_Malloc (sizeof(texture_t)
-		      + sizeof(texpatch_t)*(SHORT(mtexture->patchcount)-1),
-		      PU_STATIC, 0);
-	
-	texture->width = SHORT(mtexture->width);
-	texture->height = SHORT(mtexture->height);
-	texture->patchcount = SHORT(mtexture->patchcount);
-
-	memcpy (texture->name, mtexture->name, sizeof(texture->name));
-	mpatch = &mtexture->patches[0];
-	patch = &texture->patches[0];
-
-	for (j=0 ; j<texture->patchcount ; j++, mpatch++, patch++)
-	{
-	    patch->originx = SHORT(mpatch->originx);
-	    patch->originy = SHORT(mpatch->originy);
-	    patch->patch = patchlookup[SHORT(mpatch->patch)];
-	    if (patch->patch == -1)
-	    {
-		I_Error ("R_InitTextures: Missing patch in texture %s",
-			 texture->name);
+	    if (i == numtextures1) {
+		    // Start looking in second texture file.
+		    maptex = maptex2;
+		    maxoff = maxoff2;
+		    directory = maptex + 1;
 	    }
-	}		
-	texturecolumnlump[i] = Z_Malloc (texture->width*2, PU_STATIC,0);
-	texturecolumnofs[i] = Z_Malloc (texture->width*2, PU_STATIC,0);
 
-	j = 1;
-	while (j*2 <= texture->width)
-	    j<<=1;
+	    offset = LONG(*directory);
 
-	texturewidthmask[i] = j-1;
-	textureheight[i] = texture->height<<FRACBITS;
-		
-	totalwidth += texture->width;
+	    if (offset > maxoff) I_Error("R_InitTextures: bad texture directory");
+
+	    mtexture = (maptexture_t *) ((byte *) maptex + offset);
+
+	    texture = textures[i] =
+	              Z_Malloc(sizeof(texture_t)
+	                       + sizeof(texpatch_t) * (SHORT(mtexture->patchcount) - 1),
+	                       PU_STATIC, 0);
+
+	    texture->width = SHORT(mtexture->width);
+	    texture->height = SHORT(mtexture->height);
+	    texture->patchcount = SHORT(mtexture->patchcount);
+
+	    memcpy(texture->name, mtexture->name, sizeof(texture->name));
+	    mpatch = &mtexture->patches[0];
+	    patch = &texture->patches[0];
+
+	    for (j = 0; j < texture->patchcount; j++, mpatch++, patch++) {
+		    patch->originx = SHORT(mpatch->originx);
+		    patch->originy = SHORT(mpatch->originy);
+		    patch->patch = patchlookup[SHORT(mpatch->patch)];
+		    if (patch->patch == -1) {
+			    I_Error("R_InitTextures: Missing patch in texture %s", texture->name);
+		    }
+	    }
+	    texturecolumnlump[i] = Z_Malloc(texture->width * 2, PU_STATIC, 0);
+	    texturecolumnofs[i] = Z_Malloc(texture->width * 2, PU_STATIC, 0);
+
+	    j = 1;
+	    while (j * 2 <= texture->width) j <<= 1;
+
+	    texturewidthmask[i] = j - 1;
+	    textureheight[i] = texture->height << FRACBITS;
+
+	    totalwidth += texture->width;
     }
 
     Z_Free (maptex1);
-    if (maptex2)
-	Z_Free (maptex2);
+    if (maptex2) Z_Free (maptex2);
     
     // Precalculate whatever possible.	
-    for (i=0 ; i<numtextures ; i++)
-	R_GenerateLookup (i);
+    for (i=0 ; i<numtextures ; i++) R_GenerateLookup (i);
     
     // Create translation table for global animation.
     texturetranslation = Z_Malloc ((numtextures+1)*4, PU_STATIC, 0);
@@ -578,8 +558,7 @@ void R_InitTextures (void)
 //
 // R_InitFlats
 //
-void R_InitFlats (void)
-{
+void R_InitFlats (void) {
     int		i;
 	
     firstflat = W_GetNumForName ("F_START") + 1;
@@ -589,8 +568,7 @@ void R_InitFlats (void)
     // Create translation table for global animation.
     flattranslation = Z_Malloc ((numflats+1)*4, PU_STATIC, 0);
     
-    for (i=0 ; i<numflats ; i++)
-	flattranslation[i] = i;
+    for (i=0 ; i<numflats ; i++) flattranslation[i] = i;
 }
 
 
