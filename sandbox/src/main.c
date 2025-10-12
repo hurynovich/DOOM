@@ -3,11 +3,10 @@
 //
 #include <stdio.h>
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
 #ifdef __BIG_ENDIAN__
-    printf("Big endian");
+  printf("Big endian");
 #else
-    printf("Little endian"); //this one is executed
+  printf("Little endian"); // this one is executed
 #endif
 }

@@ -59,39 +59,30 @@ int			numlumps;
 void**			lumpcache;
 
 
-#define strcmpi	strcasecmp
+#define strcmpi strcasecmp
 
-void strupr (char* s)
-{
+void strupr (char* s) {
     while (*s) { *s = toupper(*s); s++; }
 }
 
-int filelength (int handle) 
-{ 
+int filelength (int handle) {
     struct stat	fileinfo;
     
-    if (fstat (handle,&fileinfo) == -1)
+    if (fstat (handle, &fileinfo) == -1)
         I_Error ("Error fstating");
 
     return fileinfo.st_size;
 }
 
 
-void
-ExtractFileBase
-( char*		path,
-  char*		dest )
-{
+void ExtractFileBase (char* path, char* dest) {
     char*	src;
     int		length;
 
     src = path + strlen(path) - 1;
     
     // back up until a \ or the start
-    while (src != path
-           && *(src-1) != '\\'
-           && *(src-1) != '/')
-    {
+    while (src != path && *(src-1) != '\\' && *(src-1) != '/') {
         src--;
     }
     
@@ -99,8 +90,7 @@ ExtractFileBase
     memset (dest,0,8);
     length = 0;
     
-    while (*src && *src != '.')
-    {
+    while (*src && *src != '.') {
         if (++length == 9)
             I_Error ("Filename base of %s >8 chars",path);
 
@@ -133,8 +123,7 @@ int			reloadlump;
 char*			reloadname;
 
 
-void W_AddFile (char *filename)
-{
+void W_AddFile (char *filename) {
     wadinfo_t		header;
     lumpinfo_t*		lump_p;
     unsigned		i;
@@ -148,15 +137,13 @@ void W_AddFile (char *filename)
     // open the file and add to directory
 
     // handle reload indicator.
-    if (filename[0] == '~')
-    {
+    if (filename[0] == '~') {
         filename++;
         reloadname = filename;
         reloadlump = numlumps;
     }
 
-    if ( (handle = open (filename,O_RDONLY | O_BINARY)) == -1)
-    {
+    if ( (handle = open (filename,O_RDONLY | O_BINARY)) == -1) {
         printf (" couldn't open %s\n",filename);
         return;
     }
@@ -164,8 +151,7 @@ void W_AddFile (char *filename)
     printf (" adding %s\n",filename);
     startlump = numlumps;
 
-    if (strcmpi (filename+strlen(filename)-3 , "wad" ) )
-    {
+    if (strcmpi(filename+strlen(filename)-3 , "wad" )) {
         // single lump file
         fileinfo = &singleinfo;
         singleinfo.filepos = 0;
