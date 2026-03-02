@@ -1,9 +1,9 @@
 // port.c
 
-#include "doomnet.h"
-#include "sersetup.h"
+#include "../include/doomnet.h"
+#include "../include/sersetup.h"
 //#include "serstr.h"
-#include "ser_frch.h"		// FRENCH VERSION
+#include "../include/ser_frch.h" // FRENCH VERSION
 
 
 void jump_start( void );

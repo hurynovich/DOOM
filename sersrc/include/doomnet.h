@@ -51,10 +51,10 @@ typedef struct
 
 
 extern	doomcom_t	doomcom;
-extern	void interrupt (*olddoomvect) (void);
+extern	void interrupt (int *olddoomvect) (void);
 extern	int			vectorishooked;
 
-int CheckParm (char *check);
+int CheckParm (const char *check);
 void LaunchDOOM (void);
 void interrupt NetISR (void);
 

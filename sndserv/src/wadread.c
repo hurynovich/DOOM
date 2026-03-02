@@ -48,8 +48,8 @@ static const char rcsid[] = "$Id: wadread.c,v 1.3 1997/01/30 19:54:23 b1 Exp $";
 #include <ctype.h>
 #include <unistd.h>
 
-#include "../soundsrv.h"
-#include "../wadread.h"
+#include "../include/soundsrv.h"
+#include "../include/wadread.h"
 
 int *		sfxlengths;
 

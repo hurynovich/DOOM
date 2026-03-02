@@ -54,9 +54,7 @@ rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 // is stored in vertical runs of opaque pixels (posts).
 // A column is composed of zero or more posts,
 // a patch or sprite is composed of zero or more columns.
-// 
-
-
+//
 
 //
 // Texture definition.
