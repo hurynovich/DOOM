@@ -23,7 +23,7 @@
 //
 //-----------------------------------------------------------------------------
 
-
+#include <stdint.h>
 static const char
 rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 
@@ -81,12 +81,12 @@ typedef struct
 //
 typedef struct
 {
-    char		name[8];
-    boolean		masked;	
-    short		width;
-    short		height;
-    void		**columndirectory;	// OBSOLETE
-    short		patchcount;
+    char	name[8];
+    boolean	masked;
+    short	width;
+    short	height;
+    int		columndirectory;	// OBSOLETE
+    short	patchcount;
     mappatch_t	patches[1];
 } maptexture_t;
 
@@ -157,7 +157,7 @@ fixed_t*	spritewidth;
 fixed_t*	spriteoffset;
 fixed_t*	spritetopoffset;
 
-lighttable_t	*colormaps;
+lighttable_t*   colormaps;
 
 
 //
@@ -476,14 +476,14 @@ void R_InitTextures (void)
 	maxoff2 = 0;
     }
     numtextures = numtextures1 + numtextures2;
-	
-    textures = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecolumnlump = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecolumnofs = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecomposite = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecompositesize = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturewidthmask = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    textureheight = Z_Malloc (numtextures*4, PU_STATIC, 0);
+
+    textures = Z_Malloc(numtextures * sizeof(*textures), PU_STATIC, 0);
+    texturecolumnlump = Z_Malloc(numtextures * sizeof(*texturecolumnlump), PU_STATIC, 0);
+    texturecolumnofs = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    texturecomposite = Z_Malloc(numtextures * sizeof(*texturecomposite), PU_STATIC, 0);
+    texturecompositesize = Z_Malloc(numtextures * sizeof(*texturecompositesize), PU_STATIC, 0);
+    texturewidthmask = Z_Malloc(numtextures * sizeof(*texturewidthmask), PU_STATIC, 0);
+    textureheight = Z_Malloc(numtextures * sizeof(*textureheight), PU_STATIC, 0);
 
     totalwidth = 0;
     
@@ -637,7 +637,7 @@ void R_InitColormaps (void)
     lump = W_GetNumForName("COLORMAP"); 
     length = W_LumpLength (lump) + 255; 
     colormaps = Z_Malloc (length, PU_STATIC, 0); 
-    colormaps = (byte *)( ((int)colormaps + 255)&~0xff); 
+    colormaps = (lighttable_t*)(((uintptr_t)colormaps + 0xFF) & ~0xFF);
     W_ReadLump (lump,colormaps); 
 }
 
