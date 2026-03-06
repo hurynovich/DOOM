@@ -6,7 +6,6 @@ These prompts have been refined and improved based on our successful analysis of
 
 ### 1. Project Onboarding & Learning Map
 **Goal**: Get a high-level view of a new codebase and identify where to start reading.
-
 **Prompt Template**:
 > Analyze this [Programming Language] project as a learning guide. My goal is to understand the high-level architecture, the main execution pipeline, and identify 5 key files or functions to study in order.
 >
@@ -95,3 +94,17 @@ These prompts have been refined and improved based on our successful analysis of
 >    - Categorize them into Subsystems, Domain Objects, Actions, and Technical Slang.
 
 **Why this works**: It turns "DC_YL" into "Draw Column Y Low," making the code immediately more readable for a non-expert.
+
+---
+
+### 6. Meta-Refinement & Workflow Extraction
+**Goal**: Capture the successful interaction patterns from a session to reuse them in the future.
+
+**Prompt Template**:
+> Analyze our conversation so far and extract the most useful "meta-prompts" or instruction patterns we used.
+> 1. Improve these prompts so they are generic and can be used on other projects.
+> 2. Store them in a structured guide (e.g., Markdown).
+> 3. Add any additional "suggested prompts" that would be logical next steps for this project based on our discoveries.
+> 4. Explain why each prompt is effective.
+
+**Why this works**: It allows you to build a "Project Playbook." Instead of starting from scratch every time you work on a new codebase, you refine a set of tools that you know work well for your learning style.

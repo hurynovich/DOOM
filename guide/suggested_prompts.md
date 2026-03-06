@@ -72,3 +72,26 @@ Beyond basic onboarding, these prompts allow a developer to dig into the technic
 > 1. Where are the "hooks" that allow new content (e.g., new monsters, maps, textures) to be added without changing the core engine code?
 > 2. Is there a "Scripting" or "Data-Driven" component? If not, identify the best place to insert one (e.g., Lua or a simple VM).
 > 3. How does the project handle "Plugins" or "Dynamic Loading" of libraries?
+
+---
+
+### 7. Comparative Architectural Analysis (Java vs. C)
+**Goal**: Bridge the gap between modern OO languages and procedural, high-performance C.
+
+**Prompt Template**:
+> Analyze the [Subsystem] and explain how it differs from a typical modern Object-Oriented implementation in a language like Java.
+> 1. **State Management**: Instead of an object with methods, how is state kept in sync between functions?
+> 2. **Polymorphism**: If the system needs to handle different "types" of something (e.g., different types of monsters), how does it do this without `Inheritance` or `Interfaces`? (Look for `union` or `switch` statements on type IDs).
+> 3. **Error Propagation**: Instead of `try-catch` blocks, what is the pattern for error bubbling?
+> 4. **Resource Management**: Compare this to Java's Garbage Collector. How is memory cleaned up, and what is the risk of "Leaking" or "Dangling Pointers"?
+
+---
+
+### 8. The "Why" Discovery (History & Constraints)
+**Goal**: Understand why the code is written in a way that looks "bad" by modern standards.
+
+**Prompt Template**:
+> Pick 3 of the most complex or "ugly" looking functions in this codebase.
+> 1. Explain the "Original Constraint": What was the likely reason the developer wrote it this way? (e.g., CPU Cache limits, 16-bit registers, Lack of Floating Point unit).
+> 2. What would a "Clean Code" version look like today?
+> 3. Is the original version still more efficient for specific reasons? Or is it purely historical baggage?
