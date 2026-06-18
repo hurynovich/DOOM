@@ -70,7 +70,7 @@ set(SOURCES
 add_executable(linuxxdoom ${SOURCES})
 
 # Link libraries (from your Makefile: -lXext -lX11 -lnsl -lm)
-target_link_libraries(linuxxdoom Xext X11 nsl m)
+target_link_libraries(linuxxdoom Xext X11 m)
 
 # Compiler flags (from your Makefile)
 target_compile_definitions(linuxxdoom PRIVATE NORMALUNIX LINUX)

@@ -23,30 +23,26 @@
 //
 //-----------------------------------------------------------------------------
 
-
-static const char
-rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
-
-#include "../include/i_system.h"
-#include "../include/z_zone.h"
-
-#include "../include/m_swap.h"
-
-#include "../include/w_wad.h"
+static const char rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 
 #include "../include/doomdef.h"
-#include "../include/p_local.h"
-#include "../include/r_local.h"
-
 #include "../include/doomstat.h"
+#include "../include/i_system.h"
+#include "../include/m_swap.h"
+#include "../include/p_local.h"
 #include "../include/r_sky.h"
+#include "../include/r_data.h"
+#include "../include/w_wad.h"
+#include "../include/z_zone.h"
+
+#include <uchar.h>
+#include <inttypes.h>
 
 #ifdef LINUX
 #include  <alloca.h>
 #endif
 
 
-#include "../include/r_data.h"
 
 //
 // Graphics.
@@ -64,13 +60,12 @@ rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 // into the rectangular texture space using origin
 // and possibly other attributes.
 //
-typedef struct
-{
-    short	originx;
-    short	originy;
-    short	patch;
-    short	stepdir;
-    short	colormap;
+typedef struct {
+    int16_t originx;
+    int16_t originy;
+    int16_t patch;
+    int16_t stepdir;
+    int16_t colormap;
 } mappatch_t;
 
 
@@ -79,47 +74,44 @@ typedef struct
 // A DOOM wall texture is a list of patches
 // which are to be combined in a predefined order.
 //
-typedef struct
-{
-    char		name[8];
-    boolean		masked;	
-    short		width;
-    short		height;
-    void		**columndirectory;	// OBSOLETE
-    short		patchcount;
-    mappatch_t	patches[1];
+typedef struct {
+    char8_t name[8];
+    boolean masked; //TODO: find out what it does
+    int16_t width;
+    int16_t height;
+    int32_t columndirectory;  // OBSOLETE, and used to retain memory layout
+    int16_t patchcount;
+    mappatch_t patches[1];
 } maptexture_t;
 
 
 // A single patch from a texture definition,
 //  basically a rectangular area within
 //  the texture rectangle.
-typedef struct
-{
+typedef struct {
     // Block origin (allways UL),
     // which has allready accounted
     // for the internal origin of the patch.
-    int		originx;	
-    int		originy;
-    int		patch;
+    int32_t originx;
+    int32_t originy;
+    int32_t patch;
 } texpatch_t;
 
 
 // A maptexturedef_t describes a rectangular texture,
 //  which is composed of one or more mappatch_t structures
 //  that arrange graphic patches.
-typedef struct
-{
+typedef struct {
     // Keep name for switch changing, etc.
-    char	name[8];		
-    short	width;
-    short	height;
-    
+    char8_t name[8];
+    int16_t width;
+    int16_t height;
+
     // All the patches[patchcount]
     //  are drawn back to front into the cached texture.
-    short	patchcount;
-    texpatch_t	patches[1];		
-    
+    int16_t patchcount;
+    texpatch_t patches[1];
+
 } texture_t;
 
 
@@ -477,13 +469,13 @@ void R_InitTextures (void)
     }
     numtextures = numtextures1 + numtextures2;
 	
-    textures = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecolumnlump = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecolumnofs = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecomposite = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturecompositesize = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    texturewidthmask = Z_Malloc (numtextures*4, PU_STATIC, 0);
-    textureheight = Z_Malloc (numtextures*4, PU_STATIC, 0);
+    textures              = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    texturecolumnlump     = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    texturecolumnofs      = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    texturecomposite      = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    texturecompositesize  = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    texturewidthmask      = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+    textureheight         = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
 
     totalwidth = 0;
     
@@ -565,7 +557,7 @@ void R_InitTextures (void)
 	R_GenerateLookup (i);
     
     // Create translation table for global animation.
-    texturetranslation = Z_Malloc ((numtextures+1)*4, PU_STATIC, 0);
+    texturetranslation = Z_Malloc((numtextures + 1) * sizeof(*texturecolumnofs), PU_STATIC, 0);
     
     for (i=0 ; i<numtextures ; i++)
 	texturetranslation[i] = i;
@@ -585,7 +577,7 @@ void R_InitFlats (void)
     numflats = lastflat - firstflat + 1;
 	
     // Create translation table for global animation.
-    flattranslation = Z_Malloc ((numflats+1)*4, PU_STATIC, 0);
+    flattranslation = Z_Malloc ((numflats+1) * sizeof(int), PU_STATIC, 0);
     
     for (i=0 ; i<numflats ; i++)
 	flattranslation[i] = i;
@@ -607,9 +599,9 @@ void R_InitSpriteLumps (void)
     lastspritelump = W_GetNumForName ("S_END") - 1;
     
     numspritelumps = lastspritelump - firstspritelump + 1;
-    spritewidth = Z_Malloc (numspritelumps*4, PU_STATIC, 0);
-    spriteoffset = Z_Malloc (numspritelumps*4, PU_STATIC, 0);
-    spritetopoffset = Z_Malloc (numspritelumps*4, PU_STATIC, 0);
+    spritewidth     = Z_Malloc (numspritelumps * sizeof(int), PU_STATIC, 0);
+    spriteoffset    = Z_Malloc (numspritelumps * sizeof(int), PU_STATIC, 0);
+    spritetopoffset = Z_Malloc (numspritelumps * sizeof(int), PU_STATIC, 0);
 	
     for (i=0 ; i< numspritelumps ; i++)
     {
@@ -617,8 +609,8 @@ void R_InitSpriteLumps (void)
 	    printf (".");
 
 	patch = W_CacheLumpNum (firstspritelump+i, PU_CACHE);
-	spritewidth[i] = SHORT(patch->width)<<FRACBITS;
-	spriteoffset[i] = SHORT(patch->leftoffset)<<FRACBITS;
+	spritewidth[i]     = SHORT(patch->width)<<FRACBITS;
+	spriteoffset[i]    = SHORT(patch->leftoffset)<<FRACBITS;
 	spritetopoffset[i] = SHORT(patch->topoffset)<<FRACBITS;
     }
 }
@@ -636,8 +628,8 @@ void R_InitColormaps (void)
     //  256 byte align tables.
     lump = W_GetNumForName("COLORMAP"); 
     length = W_LumpLength (lump) + 255; 
-    colormaps = Z_Malloc (length, PU_STATIC, 0); 
-    colormaps = (byte *)( ((int)colormaps + 255)&~0xff); 
+    colormaps = Z_Malloc (length, PU_STATIC, 0);
+    colormaps = (byte *)((intptr_t)colormaps + 255 & ~(uintptr_t)255);
     W_ReadLump (lump,colormaps); 
 }
 
