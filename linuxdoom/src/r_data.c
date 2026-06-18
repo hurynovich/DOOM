@@ -34,6 +34,9 @@ static const char rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 #include "../include/w_wad.h"
 #include "../include/z_zone.h"
 
+#include <uchar.h>
+#include <inttypes.h>
+
 #ifdef LINUX
 #include <alloca.h>
 #endif
@@ -57,11 +60,11 @@ static const char rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 // and possibly other attributes.
 //
 typedef struct {
-  short originx;
-  short originy;
-  short patch;
-  short stepdir;
-  short colormap;
+  int16_t originx;
+  int16_t originy;
+  int16_t patch;
+  int16_t stepdir;
+  int16_t colormap;
 } mappatch_t;
 
 //
@@ -70,12 +73,12 @@ typedef struct {
 // which are to be combined in a predefined order.
 //
 typedef struct {
-  char name[8];
-  boolean masked;
-  short width;
-  short height;
-  void **columndirectory;  // OBSOLETE
-  short patchcount;
+  char8_t name[8];
+  boolean masked; //TODO: find out what it does
+  int16_t width;
+  int16_t height;
+  int32_t columndirectory;  // OBSOLETE, and used to retain memory layout
+  int16_t patchcount;
   mappatch_t patches[1];
 } maptexture_t;
 
@@ -86,9 +89,9 @@ typedef struct {
   // Block origin (allways UL),
   // which has allready accounted
   // for the internal origin of the patch.
-  int originx;
-  int originy;
-  int patch;
+  int32_t originx;
+  int32_t originy;
+  int32_t patch;
 } texpatch_t;
 
 // A maptexturedef_t describes a rectangular texture,
@@ -96,13 +99,13 @@ typedef struct {
 //  that arrange graphic patches.
 typedef struct {
   // Keep name for switch changing, etc.
-  char name[8];
-  short width;
-  short height;
+  char8_t name[8];
+  int16_t width;
+  int16_t height;
 
   // All the patches[patchcount]
   //  are drawn back to front into the cached texture.
-  short patchcount;
+  int16_t patchcount;
   texpatch_t patches[1];
 
 } texture_t;
@@ -352,13 +355,13 @@ void R_InitTextures(void) {
   }
   numtextures = numtextures1 + numtextures2;
 
-  textures = Z_Malloc(numtextures * 4, PU_STATIC, 0);
-  texturecolumnlump = Z_Malloc(numtextures * 4, PU_STATIC, 0);
-  texturecolumnofs = Z_Malloc(numtextures * 4, PU_STATIC, 0);
-  texturecomposite = Z_Malloc(numtextures * 4, PU_STATIC, 0);
-  texturecompositesize = Z_Malloc(numtextures * 4, PU_STATIC, 0);
-  texturewidthmask = Z_Malloc(numtextures * 4, PU_STATIC, 0);
-  textureheight = Z_Malloc(numtextures * 4, PU_STATIC, 0);
+  textures              = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+  texturecolumnlump     = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+  texturecolumnofs      = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+  texturecomposite      = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+  texturecompositesize  = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+  texturewidthmask      = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
+  textureheight         = Z_Malloc(numtextures * sizeof(*texturecolumnofs), PU_STATIC, 0);
 
   int totalwidth = 0;
   //	Really complex printing shit...
@@ -425,7 +428,7 @@ void R_InitTextures(void) {
   for (i = 0; i < numtextures; i++) R_GenerateLookup(i);
 
   // Create translation table for global animation.
-  texturetranslation = Z_Malloc((numtextures + 1) * 4, PU_STATIC, 0);
+  texturetranslation = Z_Malloc((numtextures + 1) * sizeof(*texturecolumnofs), PU_STATIC, 0);
 
   for (i = 0; i < numtextures; i++) texturetranslation[i] = i;
 }
@@ -484,8 +487,9 @@ void R_InitColormaps(void) {
   //  256 byte align tables.
   lump = W_GetNumForName("COLORMAP");
   length = W_LumpLength(lump) + 255;
+
   colormaps = Z_Malloc(length, PU_STATIC, 0);
-  colormaps = (byte *)(((int)colormaps + 255) & ~0xff);
+  colormaps = (byte *)((intptr_t)colormaps + 255 & ~(uintptr_t)255); //TODO: dedicated commint
   W_ReadLump(lump, colormaps);
 }
 

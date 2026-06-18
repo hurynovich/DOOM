@@ -42,6 +42,8 @@ rcsid[] = "$Id: r_draw.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 // State.
 #include "../include/doomstat.h"
 
+#include <stdint.h>
+
 // ?
 #define MAXWIDTH			1120
 #define MAXHEIGHT			832
@@ -459,26 +461,22 @@ void R_InitTranslationTables (void)
 {
     int		i;
 	
-    translationtables = Z_Malloc (256*3+255, PU_STATIC, 0);
-    translationtables = (byte *)(( (int)translationtables + 255 )& ~255);
-    
-    // translate just the 16 green colors
+  translationtables = Z_Malloc(256 * 3 + 255, PU_STATIC, 0);
+  translationtables = (byte*)(((uintptr_t)translationtables + 255) & ~(uintptr_t)255);
+
+  // translate just the 16 green colors
     for (i=0 ; i<256 ; i++)
     {
-	if (i >= 0x70 && i<= 0x7f)
-	{
-	    // map green ramp to gray, brown, red
-	    translationtables[i] = 0x60 + (i&0xf);
-	    translationtables [i+256] = 0x40 + (i&0xf);
-	    translationtables [i+512] = 0x20 + (i&0xf);
-	}
-	else
-	{
-	    // Keep all other colors as is.
-	    translationtables[i] = translationtables[i+256] 
-		= translationtables[i+512] = i;
-	}
+    if (i >= 0x70 && i <= 0x7f) {
+      // map green ramp to gray, brown, red
+      translationtables[i] = 0x60 + (i & 0xf);
+      translationtables[i + 256] = 0x40 + (i & 0xf);
+      translationtables[i + 512] = 0x20 + (i & 0xf);
+    } else {
+      // Keep all other colors as is.
+      translationtables[i] = translationtables[i + 256] = translationtables[i + 512] = i;
     }
+  }
 }
 
 

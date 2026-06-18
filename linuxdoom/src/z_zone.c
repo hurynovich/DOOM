@@ -79,16 +79,14 @@ void Z_ClearZone(memzone_t *zone) {
 // Z_Init
 //
 void Z_Init(void) {
-  memblock_t *block;
   int size;
-
-  mainzone = (memzone_t *)I_ZoneBase(&size);
+  mainzone = (memzone_t*) I_ZoneBase(&size);
   mainzone->size = size;
 
   // set the entire zone to one free block
-  mainzone->blocklist.next = mainzone->blocklist.prev = block =
-      (memblock_t *)((byte *)mainzone + sizeof(memzone_t));
-
+  memblock_t* block = (memblock_t *)((byte *)mainzone + sizeof(memzone_t));
+  mainzone->blocklist.prev = block;
+  mainzone->blocklist.next = block;
   mainzone->blocklist.user = (void *)mainzone;
   mainzone->blocklist.tag = PU_STATIC;
   mainzone->rover = block;
@@ -158,9 +156,9 @@ void Z_Free(void *ptr) {
 //
 #define MINFRAGMENT 64
 
-void *Z_Malloc(int size, int tag, void *user) {
-
-  size = (size + 3) & ~0x11;
+void* Z_Malloc(int size, int tag, void *user) {
+  //round up to 4
+  size = (size + 3) & ~3;
 
   // scan through the block list,
   // looking for the first free block
