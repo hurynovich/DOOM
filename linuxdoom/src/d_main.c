@@ -446,9 +446,9 @@ void D_AdvanceDemo (void)
 
 //
 // This cycles through the demo sequences.
-// FIXME - version dependend demo numbers?
+// FIXME - version dependent demo numbers?
 //
- void D_DoAdvanceDemo (void)
+void D_DoAdvanceDemo (void)
 {
     players[consoleplayer].playerstate = PST_LIVE;  // not reborn
     advancedemo = false;
@@ -569,6 +569,9 @@ void IdentifyVersion (void)
     char*	plutoniawad;
     char*	tntwad;
 
+    char*	freedm;
+    char*	freedoom1;
+
 #ifdef NORMALUNIX
     char *home;
     char *doomwaddir;
@@ -604,6 +607,13 @@ void IdentifyVersion (void)
     // French stuff.
     doom2fwad = malloc(strlen(doomwaddir)+1+10+1);
     sprintf(doom2fwad, "%s/doom2f.wad", doomwaddir);
+
+    // Freedoom
+    freedoom1 = malloc(strlen(doomwaddir) + 1 + 13 + 1);
+    sprintf(freedoom1, "%s/freedoom1.wad", doomwaddir);
+
+    freedm = malloc(strlen(doomwaddir)+1+10+1);
+    sprintf(freedm, "%s/freedm.wad", doomwaddir);
 
     home = getenv("HOME");
     if (!home)
@@ -702,6 +712,20 @@ void IdentifyVersion (void)
     {
       gamemode = shareware;
       D_AddFile (doom1wad);
+      return;
+    }
+
+    if ( !access (freedoom1,R_OK) )
+    {
+      gamemode = shareware;
+      D_AddFile (freedoom1);
+      return;
+    }
+
+    if ( !access (freedm,R_OK) )
+    {
+      gamemode = shareware;
+      D_AddFile (freedm);
       return;
     }
 
