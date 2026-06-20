@@ -1,0 +1,14 @@
+Language: C
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+ColumnLimit: 256
+BreakBeforeBraces: Mozilla
+AlignOperands: AlignAfterOperator
+PointerAlignment: Left
+AlignAfterOpenBracket: true
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+SpaceAfterCStyleCast: false
+MaxEmptyLinesToKeep: 3
