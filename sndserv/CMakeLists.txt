@@ -9,4 +9,5 @@ set(SOURCES
 
 add_executable(sndserv ${SOURCES})
 
-target_link_libraries(sndserv m)
+target_include_directories(sndserv PRIVATE ${SDL2_INCLUDE_DIRS})
+target_link_libraries(sndserv ${SDL2_LIBRARIES} m)

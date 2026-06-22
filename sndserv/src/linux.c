@@ -11,8 +11,8 @@
 //
 // The source is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// FITNESS FOR A PARTICULAR PURPOSE. See the DOOM Source Code License
-// for more details.
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// DOOM Source Code License for more details.
 //
 //
 // $Log: linux.c,v $
@@ -29,36 +29,19 @@
 //
 // DESCRIPTION:
 //	UNIX, soundserver for Linux i386.
+//      Refactored to use SDL2 audio instead of OSS /dev/dsp.
 //
 //-----------------------------------------------------------------------------
 
-#include <sys/ioctl.h>
-static const char rcsid[] = "$Id: linux.c,v 1.3 1997/01/26 07:45:01 b1 Exp $";
-
-
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
+#include <string.h>
 
-#include <linux/soundcard.h>
+#include <SDL2/SDL.h>
 
 #include "../include/soundsrv.h"
 
-int audio_fd;
-
-void myioctl(int fd, int command, int *arg)
-{
-    int rc;
-
-    rc = ioctl(fd, command, arg);
-    if (rc < 0) {
-        fprintf(stderr, "ioctl(dsp,%d,arg) failed\n", command);
-        fprintf(stderr, "errno=%d\n", errno);
-        exit(-1);
-    }
-}
+static SDL_AudioDeviceID audio_device = 0;
 
 void I_InitMusic(void)
 {
@@ -66,37 +49,42 @@ void I_InitMusic(void)
 
 void I_InitSound(int samplerate, int samplesize)
 {
-    int i;
+    SDL_AudioSpec desired;
 
-    audio_fd = open("/dev/dsp", O_WRONLY);
-    if (audio_fd < 0)
-        fprintf(stderr, "Could not open /dev/dsp\n");
+    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        exit(-1);
+    }
 
+    memset(&desired, 0, sizeof(desired));
+    desired.freq = samplerate;
+    desired.format = AUDIO_S16LSB;
+    desired.channels = 2;
+    desired.samples = SAMPLECOUNT;
+    desired.callback = NULL;
+    desired.userdata = NULL;
 
-    i = 11 | (2 << 16);
-    myioctl(audio_fd, SNDCTL_DSP_SETFRAGMENT, &i);
+    audio_device = SDL_OpenAudioDevice(NULL, 0, &desired, NULL, 0);
+    if (audio_device == 0) {
+        fprintf(stderr, "SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
+        exit(-1);
+    }
 
-    myioctl(audio_fd, SNDCTL_DSP_RESET, 0);
-    i = 11025;
-    myioctl(audio_fd, SNDCTL_DSP_SPEED, &i);
-    i = 1;
-    myioctl(audio_fd, SNDCTL_DSP_STEREO, &i);
-
-    myioctl(audio_fd, SNDCTL_DSP_GETFMTS, &i);
-    if (i &= AFMT_S16_LE)
-        myioctl(audio_fd, SNDCTL_DSP_SETFMT, &i);
-    else
-        fprintf(stderr, "Could not play signed 16 data\n");
+    SDL_PauseAudioDevice(audio_device, 0);
 }
 
 void I_SubmitOutputBuffer(void *samples, int samplecount)
 {
-    write(audio_fd, samples, samplecount * 4);
+    SDL_QueueAudio(audio_device, samples, samplecount * 4);
 }
 
 void I_ShutdownSound(void)
 {
-    close(audio_fd);
+    if (audio_device != 0) {
+        SDL_CloseAudioDevice(audio_device);
+        audio_device = 0;
+    }
+    SDL_Quit();
 }
 
 void I_ShutdownMusic(void)

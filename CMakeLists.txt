@@ -9,6 +9,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -DNORMALUNIX -DLINUX -w -D_GNU_SOURCE -D_
 # Add linker flags to handle TLS properly
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 
+# Find SDL2 for audio
+find_package(SDL2 REQUIRED)
+
 # Include directories
 include_directories(include)
 
