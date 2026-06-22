@@ -346,6 +346,8 @@ void I_UpdateNoBlit (void)
     // what is this?
 }
 
+void decode_colormap_and_copy(void);
+
 //
 // I_FinishUpdate
 //
@@ -504,6 +506,7 @@ void I_FinishUpdate (void)
     else
     {
 
+    decode_colormap_and_copy();
 	// draw the image
 	XPutImage(	X_display,
 			X_mainWindow,
@@ -529,51 +532,50 @@ void I_ReadScreen (byte* scr)
     memcpy (scr, screens[0], SCREENWIDTH*SCREENHEIGHT);
 }
 
+static XColor colors[256];
+
+/**
+ * This function coverts colormap codes from `screens[0]` into RGB and copies the result into `image`.
+ * It is done because X11 does not support colormap codes out of the box eny more.
+ */
+void decode_colormap_and_copy(void)
+{
+    uint32_t *data = (uint32_t*)image->data;
+    for (int i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++) {
+        const byte colorIdx = screens[0][i];
+        data[i] = (uint32_t)colors[colorIdx].pixel;
+    }
+}
 
 //
 // Palette stuff.
 //
-static XColor	colors[256];
 
 void UploadNewPalette(Colormap cmap, byte *palette)
 {
-
     register int	i;
     register int	c;
     static boolean	firstcall = true;
+    // initialize the colormap
+    if (firstcall) {
+        firstcall = false;
+        for (i = 0; i < 256; i++) {
+            // colors[i].pixel = i;
+            colors[i].flags = DoRed | DoGreen | DoBlue;
+        }
+    }
 
-#ifdef __cplusplus
-    if (X_visualinfo.c_class == PseudoColor && X_visualinfo.depth == 8)
-#else
-    if (X_visualinfo.class == PseudoColor && X_visualinfo.depth == 8)
-#endif
-	{
-	    // initialize the colormap
-	    if (firstcall)
-	    {
-		firstcall = false;
-		for (i=0 ; i<256 ; i++)
-		{
-		    colors[i].pixel = i;
-		    colors[i].flags = DoRed|DoGreen|DoBlue;
-		}
-	    }
+    // set the X colormap entries
+    for (i = 0; i < 256; i++) {
 
-	    // set the X colormap entries
-	    for (i=0 ; i<256 ; i++)
-	    {
-		c = gammatable[usegamma][*palette++];
-		colors[i].red = (c<<8) + c;
-		c = gammatable[usegamma][*palette++];
-		colors[i].green = (c<<8) + c;
-		c = gammatable[usegamma][*palette++];
-		colors[i].blue = (c<<8) + c;
-	    }
-
-	    // store the colors to the current colormap
-	    XStoreColors(X_display, cmap, colors, 256);
-
-	}
+        c = gammatable[usegamma][*palette++];
+        colors[i].red = (c << 8) + c;
+        c = gammatable[usegamma][*palette++];
+        colors[i].green = (c << 8) + c;
+        c = gammatable[usegamma][*palette++];
+        colors[i].blue = (c << 8) + c;
+        colors[i].pixel = (colors[i].red << 16) | (colors[i].green << 8) | colors[i].blue;
+    }
 }
 
 //
@@ -768,54 +770,62 @@ void I_InitGraphics(void)
 
     // use the default visual 
     X_screen = DefaultScreen(X_display);
-    if (!XMatchVisualInfo(X_display, X_screen, 8, PseudoColor, &X_visualinfo))
-	I_Error("xdoom currently only supports 256-color PseudoColor screens");
-    X_visual = X_visualinfo.visual;
+    X_visual = DefaultVisual(X_display, X_screen);
+    X_visualinfo.visualid = X_visual->visualid;
+
+    int num_visuals;
+    XVisualInfo *vinfo = XGetVisualInfo(X_display, VisualIDMask, &X_visualinfo, &num_visuals);
+    if (num_visuals != 1)
+        I_Error("Unable to determine VisualInfo, n=%d", num_visuals);
+    X_visualinfo = *vinfo;
+    XFree(vinfo);
 
     // check for the MITSHM extension
-    doShm = XShmQueryExtension(X_display);
+    doShm = false; //XShmQueryExtension(x_display);
 
     // even if it's available, make sure it's a local connection
-    if (doShm)
-    {
-	if (!displayname) displayname = (char *) getenv("DISPLAY");
-	if (displayname)
-	{
-	    d = displayname;
-	    while (*d && (*d != ':')) d++;
-	    if (*d) *d = 0;
-	    if (!(!strcasecmp(displayname, "unix") || !*displayname)) doShm = false;
-	}
+    if (doShm) {
+        if (!displayname) displayname = (char *) getenv("DISPLAY");
+        if (displayname) {
+            d = displayname;
+            while (*d && (*d != ':')) d++;
+            if (*d) *d = 0;
+            if (!(!strcasecmp(displayname, "unix") || !*displayname)) doShm = false;
+        }
+        fprintf(stderr, "Using MITSHM extension\n");
     }
 
-    fprintf(stderr, "Using MITSHM extension\n");
 
     // create the colormap
-    X_cmap = XCreateColormap(X_display, RootWindow(X_display,
-						   X_screen), X_visual, AllocAll);
+    // x_cmap = XCreateColormap(x_display, RootWindow(x_display, x_screen), x_visual, AllocAll);
 
     // setup attributes for main window
-    attribmask = CWEventMask | CWColormap | CWBorderPixel;
+    attribmask =
+            CWEventMask
+            // | CWColormap
+            | CWBorderPixel;
     attribs.event_mask =
 	KeyPressMask
 	| KeyReleaseMask
 	// | PointerMotionMask | ButtonPressMask | ButtonReleaseMask
 	| ExposureMask;
 
-    attribs.colormap = X_cmap;
+    // attribs.colormap = X_cmap;
     attribs.border_pixel = 0;
 
     // create the main window
-    X_mainWindow = XCreateWindow(	X_display,
-					RootWindow(X_display, X_screen),
-					x, y,
-					X_width, X_height,
-					0, // borderwidth
-					8, // depth
-					InputOutput,
-					X_visual,
-					attribmask,
-					&attribs );
+    X_mainWindow = XCreateWindow(
+        X_display,
+        RootWindow(X_display, X_screen),
+        x, y,
+        X_width, X_height,
+        0, // borderwidth
+        X_visualinfo.depth, // depth
+        InputOutput,
+        X_visual,
+        attribmask,
+        &attribs
+    );
 
     XDefineCursor(X_display, X_mainWindow,
 		  createnullcursor( X_display, X_mainWindow ) );
@@ -855,15 +865,17 @@ void I_InitGraphics(void)
 
 	X_shmeventtype = XShmGetEventBase(X_display) + ShmCompletion;
 
-	// create the image
-	image = XShmCreateImage(	X_display,
-					X_visual,
-					8,
-					ZPixmap,
-					0,
-					&X_shminfo,
-					X_width,
-					X_height );
+        // create the image
+        image = XShmCreateImage(
+            X_display,
+            X_visual,
+            X_visualinfo.depth,
+            ZPixmap,
+            0,
+            &X_shminfo,
+            X_width,
+            X_height
+        );
 
 	grabsharedmemory(image->bytes_per_line * image->height);
 
@@ -888,30 +900,38 @@ void I_InitGraphics(void)
 	    I_Error("shmat() failed in InitGraphics()");
 	}
 
-	// get the X server to attach to it
-	if (!XShmAttach(X_display, &X_shminfo))
-	    I_Error("XShmAttach() failed in InitGraphics()");
+        // get the X server to attach to it
+        if (!XShmAttach(X_display, &X_shminfo))
+            I_Error("XShmAttach() failed in InitGraphics()");
+    } else {
+        int bytes_per_pixel;
+        if (X_visualinfo.depth <= 8)
+            bytes_per_pixel = 1;
+        else if (X_visualinfo.depth <= 16)
+            bytes_per_pixel = 2;
+        else
+            bytes_per_pixel = 4;
 
+        image = XCreateImage(
+            X_display,
+            X_visual,
+            X_visualinfo.depth,
+            ZPixmap,
+            0,
+            calloc(X_width * X_height, bytes_per_pixel),
+            X_width, X_height,
+            32,
+            X_width * bytes_per_pixel
+        );
+
+        if (!image)
+            I_Error("XCreateImage() failed");
     }
-    else
-    {
-	image = XCreateImage(	X_display,
-    				X_visual,
-    				8,
-    				ZPixmap,
-    				0,
-    				(char*)malloc(X_width * X_height),
-    				X_width, X_height,
-    				8,
-    				X_width );
 
-    }
-
-    if (multiply == 1)
-	screens[0] = (unsigned char *) (image->data);
-    else
-	screens[0] = (unsigned char *) malloc (SCREENWIDTH * SCREENHEIGHT);
-
+    // if (multiply == 1)
+    //     screens[0] = (unsigned char *) (image->data);
+    // else
+    screens[0] = (unsigned char *) malloc(SCREENWIDTH * SCREENHEIGHT);
 }
 
 
