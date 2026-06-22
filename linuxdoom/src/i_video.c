@@ -56,6 +56,7 @@ int XShmGetEventBase( Display* dpy ); // problems with g++?
 #include "../include/v_video.h"
 
 #include "../include/doomdef.h"
+#include "../include/my_fps.h"
 
 #define POINTER_WARP_COUNTDOWN	1
 
@@ -89,10 +90,15 @@ int		doPointerWarp = POINTER_WARP_COUNTDOWN;
 // to use ....
 static int	multiply=1;
 
+static XColor colors[256];
+
+static fps_state_t *fps;
 
 //
 //  Translates the key currently in X_event
 //
+
+void decode_colormap_and_copy(void);
 
 int xlatekey(void)
 {
@@ -346,7 +352,6 @@ void I_UpdateNoBlit (void)
     // what is this?
 }
 
-void decode_colormap_and_copy(void);
 
 //
 // I_FinishUpdate
@@ -516,11 +521,18 @@ void I_FinishUpdate (void)
 			0, 0,
 			X_width, X_height );
 
+
+    char fps_buf[32];
+    int fps_len = fps_format(fps, fps_buf, sizeof(fps_buf));
+    unsigned long color = XWhitePixel(X_display, X_screen);
+    XSetForeground(X_display, X_gc, color);
+    XDrawString(X_display, X_mainWindow, X_gc, 10, 20, fps_buf, fps_len);
+
 	// sync up with server
 	XSync(X_display, False);
 
     }
-
+    fps_update(fps);
 }
 
 
@@ -532,7 +544,6 @@ void I_ReadScreen (byte* scr)
     memcpy (scr, screens[0], SCREENWIDTH*SCREENHEIGHT);
 }
 
-static XColor colors[256];
 
 /**
  * This function coverts colormap codes from `screens[0]` into RGB and copies the result into `image`.
@@ -932,6 +943,7 @@ void I_InitGraphics(void)
     //     screens[0] = (unsigned char *) (image->data);
     // else
     screens[0] = (unsigned char *) malloc(SCREENWIDTH * SCREENHEIGHT);
+    fps = fps_create();
 }
 
 

@@ -64,6 +64,7 @@ set(SOURCES
         src/info.c
         src/sounds.c
         src/i_main.c
+        src/my_fps.c
 )
 
 #Create executable
