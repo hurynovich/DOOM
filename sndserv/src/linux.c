@@ -49,13 +49,12 @@ void I_InitMusic(void)
 
 void I_InitSound(int samplerate, int samplesize)
 {
-    SDL_AudioSpec desired;
-
     if (SDL_Init(SDL_INIT_AUDIO) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         exit(-1);
     }
 
+    SDL_AudioSpec desired;
     memset(&desired, 0, sizeof(desired));
     desired.freq = samplerate;
     desired.format = AUDIO_S16LSB;

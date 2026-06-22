@@ -30,8 +30,49 @@
 // DESCRIPTION:
 //	UNIX soundserver, run as a separate process,
 //	 started by DOOM program.
-//	Originally conceived fopr SGI Irix,
+//	Originally conceived for SGI Irix,
 //	 mostly used with Linux voxware.
+//	Refactored to use SDL2 audio output.
+//
+//  ARCHITECTURE
+//  ------------
+//  The sound server is a standalone process spawned by the main linuxxdoom
+//  executable. It communicates with the parent over stdin/stdout using a
+//  simple hex-encoded text protocol. The server loads all sound effects
+//  from a WAD file at startup, then enters an event loop that:
+//
+//    1. Polls stdin for commands (non-blocking via select())
+//    2. Mixes up to 8 simultaneous sound channels into a stereo buffer
+//    3. Queues the mixed buffer to SDL2 for playback
+//    4. Sleeps for one buffer-duration before the next cycle
+//
+//  PROTOCOL (stdin commands, one character prefix + hex args)
+//  ----------------------------------------------------------
+//    'p' <snd#> <step> <vol> <sep>   Play a sound effect
+//         snd#: 2-digit hex sound ID (from sfxenum_t)
+//         step: 2-digit hex pitch step (index into step_table)
+//         vol:  2-digit hex volume (0-127)
+//         sep:  2-digit hex stereo separation (0-255)
+//
+//    'q'                              Quit (wait for channels to finish)
+//
+//    's' <snd#>                       Save sound effect to a file
+//         (filename is the first two chars of the command, snd# is hex)
+//
+//  AUDIO PIPELINE
+//  --------------
+//    WAD lumps (8-bit unsigned) → vol_lookup (→ signed 16-bit, volume-scaled)
+//    → 8-channel mixer (stereo interleaved s16) → SDL2 queue
+//
+//  The mixer uses fixed-point 16.16 step values for pitch shifting.
+//  Each channel maintains a byte pointer into the source sample data,
+//  a step increment, and a fractional remainder for sub-sample precision.
+//  The step table (step_table) maps pitch values to step increments using
+//  a logarithmic curve: step = 2^(pitch/64) * 65536.
+//
+//  Volume and stereo separation are pre-computed into lookup tables
+//  (vol_lookup) indexed by [volume][sample_byte] to avoid per-sample
+//  multiplication in the hot mixing loop.
 //
 //-----------------------------------------------------------------------------
 
@@ -48,6 +89,8 @@ static const char rcsid[] = "$Id: soundsrv.c,v 1.3 1997/01/29 22:40:44 b1 Exp $"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+
+#include <SDL2/SDL.h>
 
 #include "../include/sounds.h"
 #include "../include/soundsrv.h"
@@ -72,180 +115,194 @@ typedef struct filelump_struct {
 
 
 // an internal time keeper
-static int mytime = 0;
+static int my_time = 0;
 
 // number of sound effects
-int numsounds;
+int num_sounds;
 
 // longest sound effect
-int longsound;
+int long_sound;
 
 // lengths of all sound effects
 int lengths[NUMSFX];
 
 // mixing buffer
-signed short mixbuffer[MIXBUFFERSIZE];
+signed short mix_buffer[MIXBUFFERSIZE];
 
 // file descriptor of sfx device
-int sfxdevice;
+int sfx_device;
 
 // file descriptor of music device
-int musdevice;
+int mus_device;
 
 // the channel data pointers
 unsigned char *channels[8];
 
 // the channel step amount
-unsigned int channelstep[8];
+unsigned int channel_step[8];
 
 // 0.16 bit remainder of last step
-unsigned int channelstepremainder[8];
+unsigned int channel_step_remainder[8];
 
 // the channel data end pointers
-unsigned char *channelsend[8];
+unsigned char *channel_send[8];
 
 // time that the channel started playing
-int channelstart[8];
+int channel_start[8];
 
 // the channel handles
-int channelhandles[8];
+int channel_handles[8];
 
 // the channel left volume lookup
-int *channelleftvol_lookup[8];
+int *channel_left_vol_lookup[8];
 
 // the channel right volume lookup
-int *channelrightvol_lookup[8];
+int *channel_right_vol_lookup[8];
 
 // sfx id of the playing sound effect
-int channelids[8];
+int channel_ids[8];
 
 int snd_verbose = 1;
 
-int steptable[256];
+int step_table[256];
 
 int vol_lookup[128 * 256];
 
+// Fatal error handler: prints the message to stderr and terminates
+// with exit code -1. Used for unrecoverable conditions such as
+// out-of-bounds volume values.
 static void derror(char *msg)
 {
     fprintf(stderr, "error: %s\n", msg);
     exit(-1);
 }
 
+// Core audio mixer. Produces one buffer worth (SAMPLECOUNT frames) of
+// stereo 16-bit interleaved audio into mix_buffer.
+//
+// For each output sample:
+//   - Iterates all 8 channels; if a channel is active (non-NULL pointer),
+//     looks up the scaled signed value from vol_lookup tables and accumulates
+//     into left (dl) and right (dr) accumulators.
+//   - Advances the channel's sample pointer by the pitch step using
+//     16.16 fixed-point arithmetic with sub-sample carry.
+//   - If the pointer reaches or exceeds the channel end, the channel
+//     is deactivated (set to NULL).
+//   - Clamps the accumulated values to signed 16-bit range and writes
+//     them to the interleaved stereo output buffer.
+//
+// Returns 1 on completion.
 int mix(void)
 {
+    signed short *leftend;
+
+    signed short *leftout = mix_buffer;
+    signed short *rightout = mix_buffer + 1;
+    int step = 2;
+
+    leftend = mix_buffer + SAMPLECOUNT * step;
+
+    // mix into the mixing buffer
     register int dl;
     register int dr;
     register unsigned int sample;
-
-    signed short *leftout;
-    signed short *rightout;
-    signed short *leftend;
-
-    int step;
-
-    leftout = mixbuffer;
-    rightout = mixbuffer + 1;
-    step = 2;
-
-    leftend = mixbuffer + SAMPLECOUNT * step;
-
-    // mix into the mixing buffer
     while (leftout != leftend) {
         dl = 0;
         dr = 0;
 
         if (channels[0]) {
             sample = *channels[0];
-            dl += channelleftvol_lookup[0][sample];
-            dr += channelrightvol_lookup[0][sample];
-            channelstepremainder[0] += channelstep[0];
-            channels[0] += channelstepremainder[0] >> 16;
-            channelstepremainder[0] &= 65536 - 1;
+            dl += channel_left_vol_lookup[0][sample];
+            dr += channel_right_vol_lookup[0][sample];
+            channel_step_remainder[0] += channel_step[0];
+            channels[0] += channel_step_remainder[0] >> 16;
+            channel_step_remainder[0] &= 65536 - 1;
 
-            if (channels[0] >= channelsend[0])
+            if (channels[0] >= channel_send[0])
                 channels[0] = 0;
         }
 
         if (channels[1]) {
             sample = *channels[1];
-            dl += channelleftvol_lookup[1][sample];
-            dr += channelrightvol_lookup[1][sample];
-            channelstepremainder[1] += channelstep[1];
-            channels[1] += channelstepremainder[1] >> 16;
-            channelstepremainder[1] &= 65536 - 1;
+            dl += channel_left_vol_lookup[1][sample];
+            dr += channel_right_vol_lookup[1][sample];
+            channel_step_remainder[1] += channel_step[1];
+            channels[1] += channel_step_remainder[1] >> 16;
+            channel_step_remainder[1] &= 65536 - 1;
 
-            if (channels[1] >= channelsend[1])
+            if (channels[1] >= channel_send[1])
                 channels[1] = 0;
         }
 
         if (channels[2]) {
             sample = *channels[2];
-            dl += channelleftvol_lookup[2][sample];
-            dr += channelrightvol_lookup[2][sample];
-            channelstepremainder[2] += channelstep[2];
-            channels[2] += channelstepremainder[2] >> 16;
-            channelstepremainder[2] &= 65536 - 1;
+            dl += channel_left_vol_lookup[2][sample];
+            dr += channel_right_vol_lookup[2][sample];
+            channel_step_remainder[2] += channel_step[2];
+            channels[2] += channel_step_remainder[2] >> 16;
+            channel_step_remainder[2] &= 65536 - 1;
 
-            if (channels[2] >= channelsend[2])
+            if (channels[2] >= channel_send[2])
                 channels[2] = 0;
         }
 
         if (channels[3]) {
             sample = *channels[3];
-            dl += channelleftvol_lookup[3][sample];
-            dr += channelrightvol_lookup[3][sample];
-            channelstepremainder[3] += channelstep[3];
-            channels[3] += channelstepremainder[3] >> 16;
-            channelstepremainder[3] &= 65536 - 1;
+            dl += channel_left_vol_lookup[3][sample];
+            dr += channel_right_vol_lookup[3][sample];
+            channel_step_remainder[3] += channel_step[3];
+            channels[3] += channel_step_remainder[3] >> 16;
+            channel_step_remainder[3] &= 65536 - 1;
 
-            if (channels[3] >= channelsend[3])
+            if (channels[3] >= channel_send[3])
                 channels[3] = 0;
         }
 
         if (channels[4]) {
             sample = *channels[4];
-            dl += channelleftvol_lookup[4][sample];
-            dr += channelrightvol_lookup[4][sample];
-            channelstepremainder[4] += channelstep[4];
-            channels[4] += channelstepremainder[4] >> 16;
-            channelstepremainder[4] &= 65536 - 1;
+            dl += channel_left_vol_lookup[4][sample];
+            dr += channel_right_vol_lookup[4][sample];
+            channel_step_remainder[4] += channel_step[4];
+            channels[4] += channel_step_remainder[4] >> 16;
+            channel_step_remainder[4] &= 65536 - 1;
 
-            if (channels[4] >= channelsend[4])
+            if (channels[4] >= channel_send[4])
                 channels[4] = 0;
         }
 
         if (channels[5]) {
             sample = *channels[5];
-            dl += channelleftvol_lookup[5][sample];
-            dr += channelrightvol_lookup[5][sample];
-            channelstepremainder[5] += channelstep[5];
-            channels[5] += channelstepremainder[5] >> 16;
-            channelstepremainder[5] &= 65536 - 1;
+            dl += channel_left_vol_lookup[5][sample];
+            dr += channel_right_vol_lookup[5][sample];
+            channel_step_remainder[5] += channel_step[5];
+            channels[5] += channel_step_remainder[5] >> 16;
+            channel_step_remainder[5] &= 65536 - 1;
 
-            if (channels[5] >= channelsend[5])
+            if (channels[5] >= channel_send[5])
                 channels[5] = 0;
         }
 
         if (channels[6]) {
             sample = *channels[6];
-            dl += channelleftvol_lookup[6][sample];
-            dr += channelrightvol_lookup[6][sample];
-            channelstepremainder[6] += channelstep[6];
-            channels[6] += channelstepremainder[6] >> 16;
-            channelstepremainder[6] &= 65536 - 1;
+            dl += channel_left_vol_lookup[6][sample];
+            dr += channel_right_vol_lookup[6][sample];
+            channel_step_remainder[6] += channel_step[6];
+            channels[6] += channel_step_remainder[6] >> 16;
+            channel_step_remainder[6] &= 65536 - 1;
 
-            if (channels[6] >= channelsend[6])
+            if (channels[6] >= channel_send[6])
                 channels[6] = 0;
         }
+
         if (channels[7]) {
             sample = *channels[7];
-            dl += channelleftvol_lookup[7][sample];
-            dr += channelrightvol_lookup[7][sample];
-            channelstepremainder[7] += channelstep[7];
-            channels[7] += channelstepremainder[7] >> 16;
-            channelstepremainder[7] &= 65536 - 1;
+            dl += channel_left_vol_lookup[7][sample];
+            dr += channel_right_vol_lookup[7][sample];
+            channel_step_remainder[7] += channel_step[7];
+            channels[7] += channel_step_remainder[7] >> 16;
+            channel_step_remainder[7] &= 65536 - 1;
 
-            if (channels[7] >= channelsend[7])
+            if (channels[7] >= channel_send[7])
                 channels[7] = 0;
         }
 
@@ -279,49 +336,59 @@ int mix(void)
 }
 
 
-void grabdata(int c, char **v)
+// Locates and opens a WAD file, then loads all sound effect lumps into
+// the global S_sfx[] array.
+//
+// WAD search order (first readable file wins):
+//   1. $DOOMWADDIR/doom2f.wad  (Final DOOM: TNT)
+//   2. $DOOMWADDIR/doom2.wad   (DOOM II)
+//   3. $DOOMWADDIR/doomu.wad   (Ultimate DOOM)
+//   4. $DOOMWADDIR/doom.wad    (Registered DOOM)
+//   5. $DOOMWADDIR/doom1.wad   (Shareware DOOM)
+//   6. $DOOMWADDIR/freedm.wad  (Freedoom: Deathmatch)
+//   7. $DOOMWADDIR/freedoom1.wad (Freedoom: Phase 1)
+//
+// If DOOMWADDIR is not set, defaults to the current directory.
+//
+// For each sfx slot (1..NUMSFX-1):
+//   - If the sfx has a link (alias), copies the linked sfx's data pointer
+//     and length.
+//   - Otherwise, reads the lump from the WAD via getsfx().
+//   - Tracks the longest sound effect in long_sound.
+//
+// Supports -quiet flag to suppress verbose output.
+void grab_data(int c, char **v)
 {
-    int i;
-    char *name;
-    char *doom1wad;
-    char *doomwad;
-    char *doomuwad;
-    char *doom2wad;
-    char *doom2fwad;
-    // Freedoom
-    char *freedoom1;
-    char *freedm;
 
     // Now where are TNT and Plutonia. Yuck.
 
     //	char *home;
-    char *doomwaddir;
 
-    doomwaddir = getenv("DOOMWADDIR");
+    char *doomwaddir = getenv("DOOMWADDIR");
 
     if (!doomwaddir)
         doomwaddir = ".";
 
-    doom1wad = malloc(strlen(doomwaddir) + 1 + 9 + 1);
+    char *doom1wad = malloc(strlen(doomwaddir) + 1 + 9 + 1);
     sprintf(doom1wad, "%s/doom1.wad", doomwaddir);
 
-    doom2wad = malloc(strlen(doomwaddir) + 1 + 9 + 1);
+    char *doom2wad = malloc(strlen(doomwaddir) + 1 + 9 + 1);
     sprintf(doom2wad, "%s/doom2.wad", doomwaddir);
 
-    doom2fwad = malloc(strlen(doomwaddir) + 1 + 10 + 1);
+    char *doom2fwad = malloc(strlen(doomwaddir) + 1 + 10 + 1);
     sprintf(doom2fwad, "%s/doom2f.wad", doomwaddir);
 
-    doomuwad = malloc(strlen(doomwaddir) + 1 + 9 + 1);
+    char *doomuwad = malloc(strlen(doomwaddir) + 1 + 9 + 1);
     sprintf(doomuwad, "%s/doomu.wad", doomwaddir);
 
-    doomwad = malloc(strlen(doomwaddir) + 1 + 8 + 1);
+    char *doomwad = malloc(strlen(doomwaddir) + 1 + 8 + 1);
     sprintf(doomwad, "%s/doom.wad", doomwaddir);
 
     // Freedoom
-    freedoom1 = malloc(strlen(doomwaddir) + 1 + 13 + 1);
+    char *freedoom1 = malloc(strlen(doomwaddir) + 1 + 13 + 1);
     sprintf(freedoom1, "%s/freedoom1.wad", doomwaddir);
 
-    freedm = malloc(strlen(doomwaddir)+1+10+1);
+    char *freedm = malloc(strlen(doomwaddir) + 1 + 10 + 1);
     sprintf(freedm, "%s/freedm.wad", doomwaddir);
 
     //	home = getenv("HOME");
@@ -330,15 +397,16 @@ void grabdata(int c, char **v)
     //	sprintf(basedefault, "%s/.doomrc", home);
 
 
+    int i;
     for (i = 1; i < c; i++) {
         if (!strcmp(v[i], "-quiet")) {
             snd_verbose = 0;
         }
     }
 
-    numsounds = NUMSFX;
-    longsound = 0;
-
+    num_sounds = NUMSFX;
+    long_sound = 0;
+    char *name;
     if (!access(doom2fwad, R_OK))
         name = doom2fwad;
     else if (!access(doom2wad, R_OK))
@@ -353,15 +421,10 @@ void grabdata(int c, char **v)
         name = freedm;
     else if (!access(freedoom1, R_OK))
         name = freedoom1;
-    // else if (! access(DEVDATA "doom2.wad", R_OK) )
-    //   name = DEVDATA "doom2.wad";
-    //   else if (! access(DEVDATA "doom.wad", R_OK) )
-    //   name = DEVDATA "doom.wad";
     else {
         fprintf(stderr, "Could not find wadfile anywhere\n");
         exit(-1);
     }
-
 
     openwad(name);
     if (snd_verbose)
@@ -370,7 +433,7 @@ void grabdata(int c, char **v)
     for (i = 1; i < NUMSFX; i++) {
         if (!S_sfx[i].link) {
             S_sfx[i].data = getsfx(S_sfx[i].name, &lengths[i]);
-            if (longsound < lengths[i]) longsound = lengths[i];
+            if (long_sound < lengths[i]) long_sound = lengths[i];
         } else {
             S_sfx[i].data = S_sfx[i].link->data;
             lengths[i] = lengths[(S_sfx[i].link - S_sfx) / sizeof(sfxinfo_t)];
@@ -392,25 +455,44 @@ static struct timeval last = {0, 0};
 
 static struct timezone whocares;
 
-void updatesounds(void)
+// Mixes one buffer of audio and submits it to SDL2 for playback.
+// Called once per main loop iteration (every ~46ms at 11025 Hz /
+// 512 samples).
+void update_sounds(void)
 {
     mix();
-    I_SubmitOutputBuffer(mixbuffer, SAMPLECOUNT);
+    I_SubmitOutputBuffer(mix_buffer, SAMPLECOUNT);
 }
 
-int
-addsfx
-(int sfxid,
- int volume,
- int step,
- int seperation)
+// Adds a sound effect to one of the 8 mixing channels.
+//
+// Parameters:
+//   soudId      - Sound effect ID (index into S_sfx[], from sfxenum_t)
+//   volume      - Volume level (0-127)
+//   step        - Pitch step from step_table (16.16 fixed-point increment)
+//   seperation  - Stereo separation (0-255, 128 = center)
+//
+// Channel allocation:
+//   - "Singularity" sounds (chainsaw idle/full/up/hit, pistol,
+//     platform move): first stops any existing channel playing the
+//     same sound, then allocates normally.
+//   - Finds the oldest playing channel. If fewer than 8 channels are
+//     active, uses the first free slot. If all 8 are busy, reuses
+//     the oldest (LRU eviction).
+//
+// Stereo panning uses quadratic attenuation (x^2 / 256^2 scaling)
+// to compute left and right volumes from the separation value.
+// These volumes index into the pre-computed vol_lookup table.
+//
+// Returns a unique handle number for the sound instance, or -1 on error.
+int add_sfx(int soudId, int volume, int step, int seperation)
 {
     static unsigned short handlenums = 0;
 
     int i;
     int rc = -1;
 
-    int oldest = mytime;
+    int oldest = my_time;
     int oldestnum = 0;
     int slot;
     int rightvol;
@@ -418,14 +500,14 @@ addsfx
 
     // play these sound effects
     //  only one at a time
-    if (sfxid == sfx_sawup
-        || sfxid == sfx_sawidl
-        || sfxid == sfx_sawful
-        || sfxid == sfx_sawhit
-        || sfxid == sfx_stnmov
-        || sfxid == sfx_pistol) {
+    if (soudId == sfx_sawup
+        || soudId == sfx_sawidl
+        || soudId == sfx_sawful
+        || soudId == sfx_sawhit
+        || soudId == sfx_stnmov
+        || soudId == sfx_pistol) {
         for (i = 0; i < 8; i++) {
-            if (channels[i] && channelids[i] == sfxid) {
+            if (channels[i] && channel_ids[i] == soudId) {
                 channels[i] = 0;
                 break;
             }
@@ -433,9 +515,9 @@ addsfx
     }
 
     for (i = 0; i < 8 && channels[i]; i++) {
-        if (channelstart[i] < oldest) {
+        if (channel_start[i] < oldest) {
             oldestnum = i;
-            oldest = channelstart[i];
+            oldest = channel_start[i];
         }
     }
 
@@ -444,29 +526,27 @@ addsfx
     else
         slot = i;
 
-    channels[slot] = (unsigned char *) S_sfx[sfxid].data;
-    channelsend[slot] = channels[slot] + lengths[sfxid];
+    channels[slot] = (unsigned char *) S_sfx[soudId].data;
+    channel_send[slot] = channels[slot] + lengths[soudId];
 
     if (!handlenums)
         handlenums = 100;
 
-    channelhandles[slot] = rc = handlenums++;
-    channelstep[slot] = step;
-    channelstepremainder[slot] = 0;
-    channelstart[slot] = mytime;
+    channel_handles[slot] = rc = handlenums++;
+    channel_step[slot] = step;
+    channel_step_remainder[slot] = 0;
+    channel_start[slot] = my_time;
 
     // (range: 1 - 256)
     seperation += 1;
 
     // (x^2 seperation)
-    leftvol =
-            volume - (volume * seperation * seperation) / (256 * 256);
+    leftvol = volume - (volume * seperation * seperation) / (256 * 256);
 
     seperation = seperation - 257;
 
     // (x^2 seperation)
-    rightvol =
-            volume - (volume * seperation * seperation) / (256 * 256);
+    rightvol = volume - (volume * seperation * seperation) / (256 * 256);
 
     // sanity check
     if (rightvol < 0 || rightvol > 127)
@@ -477,15 +557,17 @@ addsfx
 
     // get the proper lookup table piece
     //  for this volume level
-    channelleftvol_lookup[slot] = &vol_lookup[leftvol * 256];
-    channelrightvol_lookup[slot] = &vol_lookup[rightvol * 256];
+    channel_left_vol_lookup[slot] = &vol_lookup[leftvol * 256];
+    channel_right_vol_lookup[slot] = &vol_lookup[rightvol * 256];
 
-    channelids[slot] = sfxid;
+    channel_ids[slot] = soudId;
 
     return rc;
 }
 
-
+// Outputs a 16-bit unsigned integer as 4 hex digits followed by newline
+// on stdout (fd 1). Used to return sound handles to the parent process.
+// Outputs "xxxx\n" if num is negative (error sentinel).
 void outputushort(int num)
 {
     static unsigned char buff[5] = {0, 0, 0, 0, '\n'};
@@ -507,12 +589,24 @@ void outputushort(int num)
     }
 }
 
+// Initializes all mixing channels to inactive, records the startup
+// timestamp, and pre-computes lookup tables:
+//
+//   step_table: 256-entry pitch-to-step-increment table.
+//     step_table[128 + i] = 2^(i/64) * 65536  for i in [-128, 127]
+//     This gives a logarithmic pitch range of 4 octaves (0.25x to 4.0x).
+//
+//   vol_lookup: 128×256 table mapping [volume][unsigned_sample_byte] to
+//     signed 16-bit sample with volume applied.
+//     vol_lookup[i*256 + j] = (i * (j - 128) * 256) / 127
+//     Converts 8-bit unsigned (0..255, center=128) to signed 16-bit
+//     with volume scaling, used as a hot-path optimization in mix().
 void initdata(void)
 {
     int i;
     int j;
 
-    int *steptablemid = steptable + 128;
+    int *steptablemid = step_table + 128;
 
     for (i = 0;
          i < sizeof(channels) / sizeof(unsigned char *);
@@ -538,6 +632,7 @@ void initdata(void)
 }
 
 
+// Shuts down SDL2 audio and music subsystems and exits with code 0.
 void quit(void)
 {
     I_ShutdownMusic();
@@ -550,6 +645,102 @@ fd_set fdset;
 fd_set scratchset;
 
 
+// Parses and dispatches a command received from the parent process.
+//
+// Command format (hex-encoded, one line per command):
+//
+//   'p' <snd#> <step> <vol> <sep>
+//       Play a sound. Reads 8 more hex chars from stdin.
+//       Decodes into sndNum (sfx ID), step (pitch), vol (volume), sep (stereo).
+//       Calls add_sfx().
+//
+//   'q'
+//       Quit command. Sets waitingToFinish flag, stops reading new commands,
+//       and allows currently playing channels to finish.
+//
+//   's' <filename_2chars><snd#>
+//       Save a sound effect. Reads 2 more chars as filename, opens the file,
+//       and writes the raw sound data from the WAD lump.
+//
+// rc and waitingToFinish are output parameters that control the main loop.
+void parse_command(int *rc, int *sndNum, unsigned char commandBuf[10], int *step, int *vol, int *sep, int *waitingToFinish)
+{
+    switch (commandBuf[0]) {
+        case 'p':
+            // play a new sound effect
+            read(0, commandBuf, 9);
+
+            if (snd_verbose) {
+                commandBuf[9] = 0;
+                fprintf(stderr, "%s\n", commandBuf);
+            }
+
+            commandBuf[0] -= commandBuf[0] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[1] -= commandBuf[1] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[2] -= commandBuf[2] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[3] -= commandBuf[3] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[4] -= commandBuf[4] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[5] -= commandBuf[5] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[6] -= commandBuf[6] >= 'a' ? ('a' - 10) : '0';
+            commandBuf[7] -= commandBuf[7] >= 'a' ? ('a' - 10) : '0';
+
+            // p<snd#><step><vol><sep>
+            *sndNum = (commandBuf[0] << 4) + commandBuf[1];
+            *step = (commandBuf[2] << 4) + commandBuf[3];
+            *step = step_table[(*step)];
+            *vol = (commandBuf[4] << 4) + commandBuf[5];
+            *sep = (commandBuf[6] << 4) + commandBuf[7];
+
+            add_sfx(*sndNum, *vol, *step, *sep);
+            // returns the handle
+            // outputushort(handle);
+            break;
+
+        case 'q':
+            read(0, commandBuf, 1);
+            *waitingToFinish = 1;
+            *rc = 0;
+            break;
+
+        case 's': {
+            int fd;
+            read(0, commandBuf, 3);
+            commandBuf[2] = 0;
+            fd = open((char *) commandBuf, O_CREAT | O_WRONLY, 0644);
+            commandBuf[0] -= commandBuf[0] >= 'a' ? 'a' - 10 : '0';
+            commandBuf[1] -= commandBuf[1] >= 'a' ? 'a' - 10 : '0';
+            *sndNum = (commandBuf[0] << 4) + commandBuf[1];
+            write(fd, S_sfx[(*sndNum)].data, lengths[(*sndNum)]);
+            close(fd);
+        }
+        break;
+
+        default:
+            fprintf(stderr, "Did not recognize command\n");
+            break;
+    }
+}
+
+// Main entry point for the sound server process.
+//
+// Startup sequence:
+//   1. grab_data()      — find WAD, load all sound effects
+//   2. initdata()       — init channels, pre-compute step/volume tables
+//   3. I_InitSound()    — open SDL2 audio device (11025 Hz, 16-bit stereo)
+//   4. I_InitMusic()    — initialize SDL2 music subsystem (stub)
+//   5. Prints "ready\n" to stderr if verbose
+//
+// Main loop (runs at ~21.5 Hz = 11025 / 512):
+//   - Increments my_time (frame counter)
+//   - If not waiting to finish: non-blocking poll (select) for commands on
+//     stdin, parses and dispatches via parse_command()
+//   - Calls update_sounds() to mix and queue the next audio buffer
+//   - Prints "Updated\n" to stdout (heartbeat for parent process)
+//   - Sleeps for one buffer duration via SDL_Delay()
+//
+// Exits when stdin closes (EOF) or when 'q' command is received and all
+// channels have finished playing (waitingToFinish mode). Cleans up via
+// quit() which shuts down SDL2 audio.
 int main(int c, char **v)
 {
     int done = 0;
@@ -570,7 +761,7 @@ int main(int c, char **v)
     int waitingtofinish = 0;
 
     // get sound data
-    grabdata(c, v);
+    grab_data(c, v);
 
     // init any data
     initdata();
@@ -587,7 +778,7 @@ int main(int c, char **v)
     FD_SET(0, &fdset);
 
     while (!done) {
-        mytime++;
+        my_time++;
 
         if (!waitingtofinish) {
             do {
@@ -595,7 +786,6 @@ int main(int c, char **v)
                 rc = select(FD_SETSIZE, &scratchset, 0, 0, &zerowait);
 
                 if (rc > 0) {
-                    //	fprintf(stderr, "select is true\n");
                     // got a command
                     nrc = read(0, commandbuf, 1);
 
@@ -605,69 +795,7 @@ int main(int c, char **v)
                     } else {
                         if (snd_verbose)
                             fprintf(stderr, "cmd: %c", commandbuf[0]);
-
-                        switch (commandbuf[0]) {
-                            case 'p':
-                                // play a new sound effect
-                                read(0, commandbuf, 9);
-
-                                if (snd_verbose) {
-                                    commandbuf[9] = 0;
-                                    fprintf(stderr, "%s\n", commandbuf);
-                                }
-
-                                commandbuf[0] -=
-                                        commandbuf[0] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[1] -=
-                                        commandbuf[1] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[2] -=
-                                        commandbuf[2] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[3] -=
-                                        commandbuf[3] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[4] -=
-                                        commandbuf[4] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[5] -=
-                                        commandbuf[5] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[6] -=
-                                        commandbuf[6] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[7] -=
-                                        commandbuf[7] >= 'a' ? 'a' - 10 : '0';
-
-                                //	p<snd#><step><vol><sep>
-                                sndnum = (commandbuf[0] << 4) + commandbuf[1];
-                                step = (commandbuf[2] << 4) + commandbuf[3];
-                                step = steptable[step];
-                                vol = (commandbuf[4] << 4) + commandbuf[5];
-                                sep = (commandbuf[6] << 4) + commandbuf[7];
-
-                                handle = addsfx(sndnum, vol, step, sep);
-                                // returns the handle
-                                //	outputushort(handle);
-                                break;
-
-                            case 'q':
-                                read(0, commandbuf, 1);
-                                waitingtofinish = 1;
-                                rc = 0;
-                                break;
-
-                            case 's': {
-                                int fd;
-                                read(0, commandbuf, 3);
-                                commandbuf[2] = 0;
-                                fd = open((char *) commandbuf, O_CREAT | O_WRONLY, 0644);
-                                commandbuf[0] -= commandbuf[0] >= 'a' ? 'a' - 10 : '0';
-                                commandbuf[1] -= commandbuf[1] >= 'a' ? 'a' - 10 : '0';
-                                sndnum = (commandbuf[0] << 4) + commandbuf[1];
-                                write(fd, S_sfx[sndnum].data, lengths[sndnum]);
-                                close(fd);
-                            }
-                            break;
-
-                            default:
-                                fprintf(stderr, "Did not recognize command\n");
-                                break;
-                        }
+                        parse_command(&rc, &sndnum, commandbuf, &step, &vol, &sep, &waitingtofinish);
                     }
                 } else if (rc < 0) {
                     quit();
@@ -675,14 +803,17 @@ int main(int c, char **v)
             } while (rc > 0);
         }
 
-        updatesounds();
+        update_sounds();
+        // printf("Updated\n");
 
-        if (waitingtofinish) {
-            for (i = 0; i < 8 && !channels[i]; i++);
+        SDL_Delay(1000 * SAMPLECOUNT / SPEED);
 
-            if (i == 8)
-                done = 1;
-        }
+        // if (waitingtofinish) {
+        //     for (i = 0; i < 8 && !channels[i]; i++);
+        //
+        //     if (i == 8)
+        //         done = 1;
+        // }
     }
 
     quit();
